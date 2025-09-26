@@ -1,0 +1,9 @@
+.vs/
+x64/
+*.vcxproj.user
+*.obj
+*.pdb
+*.exe
+*.dll
+*.lib
+*.ptx
