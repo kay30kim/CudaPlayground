@@ -1,10 +1,29 @@
-﻿
-#include "cuda_runtime.h"
+﻿#include "cuda_runtime.h"
 #include "device_launch_parameters.h"
-
 #include <stdio.h>
+#include <cmath>
+#define INF     2e10f
 
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
+
+struct Sphere
+{
+    float r, b, g;
+    float radius;
+    float x, y, z;
+    __device__ float hit(float ox, float oy, float* n)
+    {
+        float dx = ox - x;
+        float dy = oy - y;
+        if (dx * dx + dy * dy < radius * radius)
+        {
+            float dz = sqrtf(radius * radius - dx * dx - dy * dy);
+            *n = dz / sqrtf(radius * radius);
+            return dz + z;
+        }
+        return -INF;
+    }
+};
 
 __global__ void addKernel(int *c, const int *a, const int *b)
 {
