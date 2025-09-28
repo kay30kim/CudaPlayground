@@ -3,7 +3,10 @@
 #include <stdio.h>
 #include <cuda.h>
 #include <cmath>
+#include "common/book.h"
+#include "common/cpu_bitmap.h"
 #define INF     2e10f
+#define DIM     1024
 
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
@@ -39,14 +42,14 @@ Sphere* s;
 int main(void)
 {
     cudaEvent_t start, stop;
-    HANDLE_ERROR{ cudaEventCreate(&start) };
-    HANDLE_ERROR{ cudaEventCreate(&stop) };
-    HANDLE_ERROR{ cudaEventRecord(start, 0) };
+    HANDLE_ERROR( cudaEventCreate(&start) );
+    HANDLE_ERROR( cudaEventCreate(&stop) );
+    HANDLE_ERROR( cudaEventRecord(start, 0) );
 
     CPUBitmap bitmap(DIM, DIM);
     unsigned char* dev_bitmap;
 
-    HANDLE_ERROR(cudaMalloc((void**)& dev_bitmap, bitmap.image_size())));
+    HANDLE_ERROR(cudaMalloc((void**)& dev_bitmap, bitmap.image_size()));
     HANDLE_ERROR(cudaMalloc((void**)&s, sizeof(Sphere) * SPHERES));
 }
 /*
@@ -79,6 +82,7 @@ int main()
 }
 */
 // Helper function for using CUDA to add vectors in parallel.
+/*
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
 {
     int *dev_a = 0;
@@ -157,3 +161,4 @@ Error:
     
     return cudaStatus;
 }
+*/
