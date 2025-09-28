@@ -1,6 +1,7 @@
 ﻿#include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <stdio.h>
+#include <cuda.h>
 #include <cmath>
 #define INF     2e10f
 
@@ -31,6 +32,24 @@ __global__ void addKernel(int *c, const int *a, const int *b)
     c[i] = a[i] + b[i];
 }
 
+#define rnd(x) (x * rand() / RAND_MAX)
+#define SPHERES 20
+
+Sphere* s;
+int main(void)
+{
+    cudaEvent_t start, stop;
+    HANDLE_ERROR{ cudaEventCreate(&start) };
+    HANDLE_ERROR{ cudaEventCreate(&stop) };
+    HANDLE_ERROR{ cudaEventRecord(start, 0) };
+
+    CPUBitmap bitmap(DIM, DIM);
+    unsigned char* dev_bitmap;
+
+    HANDLE_ERROR(cudaMalloc((void**)& dev_bitmap, bitmap.image_size())));
+    HANDLE_ERROR(cudaMalloc((void**)&s, sizeof(Sphere) * SPHERES));
+}
+/*
 int main()
 {
     const int arraySize = 5;
@@ -58,7 +77,7 @@ int main()
 
     return 0;
 }
-
+*/
 // Helper function for using CUDA to add vectors in parallel.
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
 {
