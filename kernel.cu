@@ -5,10 +5,12 @@
 #include <cmath>
 #include "common/book.h"
 #include "common/cpu_bitmap.h"
+
 #define INF     2e10f
 #define DIM     1024
-
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
+#define USE_CONSTANT 1
+#define rnd(x) (x * rand() / RAND_MAX)
+#define SPHERES 20
 
 struct Sphere
 {
@@ -29,28 +31,100 @@ struct Sphere
     }
 };
 
+// ====== 구 배열 저장 위치 선택 ======
+#if USE_CONSTANT
+__constant__ Sphere d_spheres_c[SPHERES];  // 상수 메모리
+#else
+Sphere* d_spheres_g = nullptr;             // 글로벌 메모리
+#endif
+
+cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
+
 __global__ void addKernel(int *c, const int *a, const int *b)
 {
     int i = threadIdx.x;
     c[i] = a[i] + b[i];
 }
 
-#define rnd(x) (x * rand() / RAND_MAX)
-#define SPHERES 20
-
 Sphere* s;
+__global__ void kernel(unsigned char* ptr)
+{
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    int offset = x + y * DIM; //
+    float ox = (x - DIM / 2);
+    float oy = (y - DIM / 2);
+    float r = 0, g = 0, b = 0;
+    float maxz = -INF;
+    // 모든 구와 교차 검사 → 가장 카메라에 가까운 구 선택
+    for (int i = 0; i < SPHERES; ++i)
+    {
+        float n;
+        float t = d_spheres_c[i].hit(ox, oy, &n);
+        if (t > maxz)
+        {
+            maxz = t; // 
+            float fscale = n;
+            r = d_spheres_c[i].r * fscale;
+            g = d_spheres_c[i].g * fscale;
+            b = d_spheres_c[i].b * fscale;
+        }
+    }
+
+    ptr[offset * 4 + 0] = (int)(r * 255);
+    ptr[offset * 4 + 1] = (int)(g * 255);
+    ptr[offset * 4 + 2] = (int)(b * 255);
+    ptr[offset * 4 + 3] = 255;
+}
 int main(void)
 {
+    // 1) 이벤트로 타이밍 준비
     cudaEvent_t start, stop;
     HANDLE_ERROR( cudaEventCreate(&start) );
     HANDLE_ERROR( cudaEventCreate(&stop) );
     HANDLE_ERROR( cudaEventRecord(start, 0) );
 
+    // 2) 출력 비트맵 준비
     CPUBitmap bitmap(DIM, DIM);
     unsigned char* dev_bitmap;
 
     HANDLE_ERROR(cudaMalloc((void**)& dev_bitmap, bitmap.image_size()));
-    HANDLE_ERROR(cudaMalloc((void**)&s, sizeof(Sphere) * SPHERES));
+    HANDLE_ERROR(cudaMalloc((void**)&s, sizeof(Sphere) * SPHERES)); // 구 배열 (input 배열)
+
+    // 3) 호스트에서 구들 난수로 생성
+    Sphere* temp_s = (Sphere*)malloc(sizeof(Sphere) * SPHERES);
+    for (int i = 0; i < SPHERES; ++i) {
+        temp_s[i].r = rnd(1.0f);
+        temp_s[i].g = rnd(1.0f);
+        temp_s[i].b = rnd(1.0f);
+        temp_s[i].x = rnd(1000.0f) - 500.f;
+        temp_s[i].y = rnd(1000.0f) - 500.f;
+        temp_s[i].z = rnd(1000.0f) - 500.f;
+        temp_s[i].radius = rnd(100.0f) + 20.f;
+    }
+
+    // 4) 구 데이터를 GPU로 복사 (버전에 따라 다름) -> kernel실행시킬 준비 완료
+
+#if USE_CONSTANT
+    HANDLE_ERROR(cudaMemcpyToSymbol(d_spheres_c, temp_s, sizeof(Sphere) * SPHERES));
+#else
+    HANDLE_ERROR(cudaMalloc((void**)&d_spheres_g, sizeof(Sphere) * SPHERES));
+    HANDLE_ERROR(cudaMemcpy(d_spheres_g, temp_s, sizeof(Sphere) * SPHERES, cudaMemcpyHostToDevice));
+#endif
+
+    HANDLE_ERROR(cudaMemcpy(s, temp_s, sizeof(Sphere) * SPHERES, cudaMemcpyHostToDevice));
+    free(temp_s);
+
+    // 5) 커널 실행을 위해 bitmap generate
+	dim3 grids(DIM / 16, DIM / 16);
+	dim3 threads(16, 16);
+    kernel<<<grids, threads >>> (dev_bitmap);
+
+    HANDLE_ERROR(cudaMemcpy(bitmap.get_ptr(), dev_bitmap, bitmap.image_size(), cudaMemcpyDeviceToHost));
+    bitmap.display_and_exit();
+
+    cudaFree(dev_bitmap);
+    cudaFree(s);
 }
 /*
 int main()
