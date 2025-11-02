@@ -56,18 +56,18 @@ __global__ void kernel(unsigned char* ptr)
     float oy = (y - DIM / 2);
     float r = 0, g = 0, b = 0;
     float maxz = -INF;
-    // 모든 구와 교차 검사 → 가장 카메라에 가까운 구 선택
+     //모든 구와 교차 검사 → 가장 카메라에 가까운 구 선택
     for (int i = 0; i < SPHERES; ++i)
     {
         float n;
-        float t = d_spheres_c[i].hit(ox, oy, &n);
+        float t = s[i].hit(ox, oy, &n);
         if (t > maxz)
         {
-            maxz = t; // 
+            maxz = t;
             float fscale = n;
-            r = d_spheres_c[i].r * fscale;
-            g = d_spheres_c[i].g * fscale;
-            b = d_spheres_c[i].b * fscale;
+             r = s[i].r * fscale;
+             g = s[i].g * fscale;
+             b = s[i].b * fscale;
         }
     }
 
@@ -79,9 +79,8 @@ __global__ void kernel(unsigned char* ptr)
 int main(void)
 {
     // 1) 이벤트로 타이밍 준비
-    cudaEvent_t start, stop;
+    //cudaEvent_t start;
     HANDLE_ERROR( cudaEventCreate(&start) );
-    HANDLE_ERROR( cudaEventCreate(&stop) );
     HANDLE_ERROR( cudaEventRecord(start, 0) );
 
     // 2) 출력 비트맵 준비
